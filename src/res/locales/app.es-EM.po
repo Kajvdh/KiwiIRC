@@ -534,3 +534,11 @@ msgstr "(Gracias a Adam @Rizon por el desarrollo del soporte del servidor de web
 msgid "rizon_dev"
 msgstr "¡Prueba la versión en desarrollo del Kiwi IRC!"
 
+
+#: Foreground
+msgid "colour_foreground"
+msgstr "Primer plano"
+
+#: Background
+msgid "colour_background"
+msgstr "Fondo"

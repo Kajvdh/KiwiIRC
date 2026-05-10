@@ -76,6 +76,8 @@
                         @click="closeToolsPlugins"
                         @focus="focusChanged"
                         @blur="focusChanged"
+                        @default-colour-change="saveDefaultColour"
+                        @default-bg-colour-change="saveDefaultBgColour"
                     />
                 </div>
                 <div
@@ -346,6 +348,7 @@ export default {
     },
     mounted() {
         this.inputRestore();
+        this.restoreDefaultColours();
     },
     methods: {
         inputUpdate(val) {
@@ -368,6 +371,31 @@ export default {
 
             this.$refs.input.reset(currentInput, this.keep_focus);
             this.$refs.input.selectionToEnd();
+        },
+        restoreDefaultColours() {
+            if (!this.$state.setting('showColorPicker')) {
+                return;
+            }
+            let fg = this.$state.setting('defaultInputColour');
+            let bg = this.$state.setting('defaultInputBgColour');
+            if (fg) {
+                this.$refs.input.default_colour = fg;
+                this.$refs.input.code_map[fg.colour] = fg.code;
+            }
+            if (bg && this.$state.setting('showBgColorPicker')) {
+                this.$refs.input.default_bg_colour = bg;
+                this.$refs.input.bg_code_map[bg.colour] = bg.code;
+            }
+            if (this.$refs.input.default_colour
+                || this.$refs.input.default_bg_colour) {
+                this.$refs.input.applyDefaultColours();
+            }
+        },
+        saveDefaultColour(val) {
+            this.$state.setting('defaultInputColour', val);
+        },
+        saveDefaultBgColour(val) {
+            this.$state.setting('defaultInputBgColour', val);
         },
         toggleSelfUser() {
             if (this.networkState === 'connected') {
@@ -400,6 +428,7 @@ export default {
                 this.active_tool_props = {
                     buffer: this.buffer,
                     ircinput: this.$refs.input,
+                    showBgColorPicker: this.$state.setting('showBgColorPicker'),
                 };
                 this.active_tool = tool;
             }

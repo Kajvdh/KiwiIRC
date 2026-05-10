@@ -1255,3 +1255,10 @@ msgstr "{{nick}} es ahora como {{newnick}}"
 msgid "changed_topic_to"
 msgstr "ha cambiado el tópico a: {{topic}}"
 
+#: Foreground
+msgid "colour_foreground"
+msgstr "Primer plano"
+
+#: Background
+msgid "colour_background"
+msgstr "Fondo"

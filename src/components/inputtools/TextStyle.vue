@@ -1,5 +1,15 @@
 <template>
     <div class="kiwi-inputtool-colours">
+        <div v-if="showBgColorPicker" class="kiwi-inputtool-colours-mode">
+            <span
+                :class="{ active: mode === 'fg' }"
+                @click="mode = 'fg'"
+            >{{ $t('colour_foreground') }}</span>
+            <span
+                :class="{ active: mode === 'bg' }"
+                @click="mode = 'bg'"
+            >{{ $t('colour_background') }}</span>
+        </div>
         <div class="kiwi-inputtool-colours-palette" @mousedown.prevent @click.prevent>
             <div
                 class="kiwi-inputtools-colours-colour irc-bg-colour-white"
@@ -79,9 +89,10 @@
 import * as Colours from '@/helpers/Colours';
 
 export default {
-    props: ['ircinput'],
+    props: ['ircinput', 'showBgColorPicker'],
     data: function data() {
         return {
+            mode: 'fg',
         };
     },
 
@@ -101,7 +112,11 @@ export default {
             }
 
             let code = event.target.dataset.code;
-            this.ircinput.setColour(code, colour);
+            if (this.mode === 'bg') {
+                this.ircinput.setBackgroundColour(code, colour);
+            } else {
+                this.ircinput.setColour(code, colour);
+            }
         },
         onResetClick: function onResetClick() {
             this.ircinput.resetStyles();
@@ -111,6 +126,45 @@ export default {
 </script>
 
 <style lang="less">
+
+.kiwi-inputtool-colours-mode {
+    display: flex;
+    justify-content: center;
+    padding: 4px 0;
+    user-select: none;
+    gap: 0;
+
+    span {
+        display: inline-block;
+        padding: 4px 12px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        border: none;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.5);
+        transition: background 0.15s, color 0.15s;
+
+        &:first-child {
+            border-radius: 3px 0 0 3px;
+        }
+
+        &:last-child {
+            border-radius: 0 3px 3px 0;
+        }
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        &.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+    }
+}
 
 .kiwi-inputtools-colours {
     bottom: 100%;

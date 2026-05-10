@@ -40,7 +40,9 @@ export default Vue.component('irc-input', {
             current_el: null,
             current_el_pos: 0,
             default_colour: null,
+            default_bg_colour: null,
             code_map: Object.create(null),
+            bg_code_map: Object.create(null),
         };
     },
     computed: {
@@ -49,7 +51,10 @@ export default Vue.component('irc-input', {
         },
     },
     mounted() {
-        this.resetStyles();
+        this.focus();
+        document.execCommand('styleWithCSS', false, true);
+        document.execCommand('selectAll', false, null);
+        document.execCommand('removeFormat', false, null);
     },
     methods: {
         onTextInput(event) {
@@ -132,10 +137,12 @@ export default Vue.component('irc-input', {
             // https://bugs.chromium.org/p/chromium/issues/detail?id=1125078
             this.focus();
 
-            // when the input is empty there are no children to remember the current colour
-            // so upon regaining focus we must set the current colour again
-            if (!this.getRawText() && this.default_colour) {
-                this.setColour(this.default_colour.code, this.default_colour.colour);
+            // when the input is empty there are no children to remember the
+            // current colours so upon regaining focus we must set them again
+            if (!this.getRawText()) {
+                if (this.default_bg_colour || this.default_colour) {
+                    this.applyDefaultColours();
+                }
             }
 
             this.$emit('focus', event);
@@ -213,6 +220,9 @@ export default Vue.component('irc-input', {
         setValue(newVal) {
             this.value = newVal;
             this.$refs.editor.innerHTML = newVal;
+            if (!newVal && (this.default_bg_colour || this.default_colour)) {
+                this.applyDefaultColours();
+            }
         },
         getValue() {
             return this.$refs.editor.innerHTML;
@@ -239,33 +249,75 @@ export default Vue.component('irc-input', {
                 return toggles[toggles.length - 1];
             }
 
+            let currentFgCode = this.default_colour
+                ? this.default_colour.code
+                : '01';
+
             let parser = new htmlparser.Parser({
                 onopentag: (name, attribs) => {
                     toggles.push('');
                     let codeLookup = '';
                     if (attribs.style) {
-                        let match = attribs.style.match(/color: ([^;]+)/);
+                        let fgCode = '';
+                        let bgCode = '';
+
+                        let match = attribs.style.match(
+                            /(?<![_-])color: ([^;]+)/
+                        );
                         if (match) {
                             codeLookup = match[1];
-                            let mappedCode = this.code_map[codeLookup];
-                            if (!mappedCode) {
-                                // If we didn't have an IRC code for this colour, convert the
-                                // colour to its hex form and check if we have that instead
-                                let m = codeLookup.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+                            fgCode = this.code_map[codeLookup];
+                            if (!fgCode) {
+                                // If we didn't have an IRC code for this
+                                // colour, convert to hex and check again
+                                let m = codeLookup.match(
+                                    /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/
+                                );
                                 if (m) {
                                     let hex = Colours.rgb2hex({
                                         r: parseInt(m[1], 10),
                                         g: parseInt(m[2], 10),
                                         b: parseInt(m[3], 10),
                                     });
-                                    mappedCode = this.code_map[hex];
+                                    fgCode = this.code_map[hex];
                                 }
                             }
+                        }
 
-                            if (mappedCode) {
-                                textValue += '\x03' + mappedCode;
-                                addToggle('\x03' + mappedCode);
+                        let bgMatch = attribs.style.match(
+                            /background-color: ([^;]+)/
+                        );
+                        if (bgMatch) {
+                            let bgLookup = bgMatch[1];
+                            bgCode = this.bg_code_map[bgLookup];
+                            if (!bgCode) {
+                                let m = bgLookup.match(
+                                    /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/
+                                );
+                                if (m) {
+                                    let hex = Colours.rgb2hex({
+                                        r: parseInt(m[1], 10),
+                                        g: parseInt(m[2], 10),
+                                        b: parseInt(m[3], 10),
+                                    });
+                                    bgCode = this.bg_code_map[hex];
+                                }
                             }
+                        }
+
+                        if (fgCode && bgCode) {
+                            currentFgCode = fgCode;
+                            let code = '\x03' + fgCode + ',' + bgCode;
+                            textValue += code;
+                            addToggle(code);
+                        } else if (fgCode) {
+                            currentFgCode = fgCode;
+                            textValue += '\x03' + fgCode;
+                            addToggle('\x03' + fgCode);
+                        } else if (bgCode) {
+                            let code = '\x03' + currentFgCode + ',' + bgCode;
+                            textValue += code;
+                            addToggle(code);
                         }
 
                         if (attribs.style.indexOf('bold') > -1) {
@@ -333,7 +385,24 @@ export default Vue.component('irc-input', {
 
             // Firefox likes to add <br/> at the end (some times inside the span)
             // fix by filtering out any lines that contain no content
-            return textValue.split(/\r?\n/).filter((line) => !!Misc.stripStyles(line)).join('\n');
+            // Strip zero-width spaces used as background colour anchors
+            textValue = textValue.replace(/\u200B/g, '');
+
+            // If a default background colour is active (set on the editor
+            // element), prepend the BG code to each line of output
+            if (this.default_bg_colour && textValue) {
+                let bgPrefix = '\x03' + currentFgCode + ','
+                    + this.default_bg_colour.code;
+                textValue = textValue.split(/\r?\n/).map(
+                    (line) => (Misc.stripStyles(line)
+                        ? bgPrefix + line
+                        : line)
+                ).join('\n');
+            }
+
+            return textValue.split(/\r?\n/)
+                .filter((line) => !!Misc.stripStyles(line))
+                .join('\n');
         },
         reset(rawHtml, shouldFocus) {
             this.$refs.editor.innerHTML = rawHtml || '';
@@ -351,8 +420,8 @@ export default Vue.component('irc-input', {
             if (shouldFocus) {
                 this.focus();
 
-                if (this.default_colour) {
-                    this.setColour(this.default_colour.code, this.default_colour.colour);
+                if (this.default_bg_colour || this.default_colour) {
+                    this.applyDefaultColours();
                 }
 
                 this.updateValueProps();
@@ -366,6 +435,9 @@ export default Vue.component('irc-input', {
             document.execCommand('selectAll', false, null);
             document.execCommand('removeFormat', false, null);
             this.default_colour = null;
+            this.default_bg_colour = null;
+            this.$emit('default-colour-change', null);
+            this.$emit('default-bg-colour-change', null);
         },
         setColour(code, colour) {
             // If no current text selection, set this colour as the default colour for
@@ -376,6 +448,13 @@ export default Vue.component('irc-input', {
                     code,
                     colour,
                 };
+                this.$emit('default-colour-change', this.default_colour);
+                // Update any existing colour-styled spans in the editor
+                let editor = this.$refs.editor;
+                let spans = editor.querySelectorAll('[style*=color]');
+                spans.forEach((span) => {
+                    span.style.color = colour;
+                });
             }
 
             this.focus();
@@ -384,6 +463,54 @@ export default Vue.component('irc-input', {
 
             this.code_map[colour] = code;
             this.updateValueProps();
+        },
+
+        setBackgroundColour(code, colour) {
+            this.focus();
+            let sel = window.getSelection();
+            let range = sel.getRangeAt(0);
+
+            if (range && range.collapsed) {
+                this.default_bg_colour = {
+                    code,
+                    colour,
+                };
+                this.$emit('default-bg-colour-change', this.default_bg_colour);
+                // Update any existing bg-styled spans in the editor
+                let editor = this.$refs.editor;
+                let spans = editor.querySelectorAll('[style*=background]');
+                spans.forEach((span) => {
+                    span.style.backgroundColor = colour;
+                });
+            } else {
+                document.execCommand('styleWithCSS', false, true);
+                document.execCommand('hiliteColor', false, colour);
+            }
+
+            this.bg_code_map[colour] = code;
+            this.updateValueProps();
+        },
+        applyDefaultColours() {
+            // Create a styled span with cursor inside it so typed
+            // text inherits the colours. Uses two ZWS chars to keep
+            // the cursor unambiguously inside the span boundaries.
+            let editor = this.$refs.editor;
+            let span = document.createElement('span');
+            if (this.default_bg_colour) {
+                span.style.backgroundColor = this.default_bg_colour.colour;
+            }
+            if (this.default_colour) {
+                span.style.color = this.default_colour.colour;
+            }
+            span.textContent = '\u200B\u200B';
+            editor.appendChild(span);
+
+            let range = document.createRange();
+            range.setStart(span.firstChild, 1);
+            range.collapse(true);
+            let sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
         },
         toggleBold() {
             document.execCommand('bold', false, null);
@@ -418,6 +545,10 @@ export default Vue.component('irc-input', {
             newImg.alt = alt;
             Object.assign(newImg, props);
 
+            if (this.default_bg_colour) {
+                newImg.style.backgroundColor = this.default_bg_colour.colour;
+            }
+
             // Find the position of this new image node
             let prevElCnt = 0;
             let el = newImg;
@@ -431,6 +562,32 @@ export default Vue.component('irc-input', {
 
             this.updateValueProps();
             this.focus();
+
+            // If default colours are set, insert a styled span after the
+            // image so subsequent typing inherits the colours
+            if (this.default_bg_colour || this.default_colour) {
+                let span = document.createElement('span');
+                if (this.default_bg_colour) {
+                    span.style.backgroundColor =
+                        this.default_bg_colour.colour;
+                }
+                if (this.default_colour) {
+                    span.style.color = this.default_colour.colour;
+                }
+                span.textContent = '\u200B\u200B';
+
+                let sel = window.getSelection();
+                let range = sel.getRangeAt(0);
+                range.collapse(false);
+                range.insertNode(span);
+
+                let newRange = document.createRange();
+                newRange.setStart(span.firstChild, 1);
+                newRange.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+                this.updateValueProps();
+            }
         },
 
         // Insert some text at the current position
@@ -512,7 +669,7 @@ export default Vue.component('irc-input', {
             let endPos = toPosition ? pos - startPos : space;
 
             return {
-                word: val.substr(startPos, endPos),
+                word: val.substr(startPos, endPos).replace(/\u200B/g, ''),
                 position: pos - startPos,
             };
         },

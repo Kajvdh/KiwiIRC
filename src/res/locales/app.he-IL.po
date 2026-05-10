@@ -1255,3 +1255,10 @@ msgstr "{{nick}} מוצג/ת כעת בתור {{newnick}}"
 msgid "changed_topic_to"
 msgstr "{{nick}} changed the topic to: {{topic}}"
 
+#: Foreground
+msgid "colour_foreground"
+msgstr "צבע טקסט"
+
+#: Background
+msgid "colour_background"
+msgstr "צבע רקע"

@@ -1255,3 +1255,10 @@ msgstr "{{nick}} is now known as {{newnick}}"
 msgid "changed_topic_to"
 msgstr "{{nick}}이 {{topic}}으로 주제를 변경함"
 
+#: Foreground
+msgid "colour_foreground"
+msgstr "전경색"
+
+#: Background
+msgid "colour_background"
+msgstr "배경색"

@@ -1255,3 +1255,10 @@ msgstr "{{nick}} és ara {{newnick}}"
 msgid "changed_topic_to"
 msgstr "{{nick}} ha canviat el tòpic a: {{topic}}"
 
+#: Foreground
+msgid "colour_foreground"
+msgstr "Primer pla"
+
+#: Background
+msgid "colour_background"
+msgstr "Fons"
